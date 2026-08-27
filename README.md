@@ -10,6 +10,8 @@ report every time you finish a new game.
 The backend is FastAPI, the frontend is one static `index.html` file, and the data
 lives in SQLite.
 
+Licensed under the [AGPL-3.0-or-later](LICENSE) — see [License](#license).
+
 ## Features
 
 **Game review**
@@ -46,6 +48,7 @@ lives in SQLite.
 | `build_openings.py` | Builds `openings.json`. Run it once; not needed at runtime. |
 | `index.html` | The whole Mini App: board, review, graph, archive browser. |
 | `img/` | Piece images for the board. |
+| `LICENSE` | The full AGPL-3.0 text. |
 
 ## Requirements
 
@@ -212,3 +215,33 @@ back to a handful of common lines without names.
   analyzed and shown, but not saved.
 - The Mini App needs a network connection: jQuery, chessboard.js and chess.js come
   from a CDN.
+
+## License
+
+This project is licensed under the **GNU Affero General Public License, version 3
+or later** (AGPL-3.0-or-later). The full text is in [`LICENSE`](LICENSE).
+
+Copyright (C) 2026 Mr-Meter
+
+In short: you may use, study, change and share this code, but any modified version
+you distribute — or run as a network service that other people can reach — has to be
+offered to those people under the same license, source included. Section 13 of the
+AGPL is the part that covers the network case, which is what a Mini App and a bot are.
+
+The choice is not entirely free: `python-chess` is GPL-3.0-or-later, and `analysis.py`
+imports it directly, so anything built on this code has to stay GPL-compatible anyway.
+The AGPL only adds the network clause on top.
+
+### Third-party components
+
+| Component | Used how | License |
+| --- | --- | --- |
+| [python-chess](https://github.com/niklasf/python-chess) | imported by `analysis.py` | GPL-3.0-or-later |
+| [Stockfish](https://github.com/official-stockfish/Stockfish) | separate process over UCI; the Docker image installs the Debian package | GPL-3.0-or-later |
+| [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) | ECO tables that `build_openings.py` turns into `openings.json` | CC0-1.0 |
+| Piece images in `img/chesspieces/wikipedia/` | drawn by [Cburnett](https://en.wikipedia.org/wiki/User:Cburnett), shipped with [chessboard.js](https://github.com/oakmac/chessboardjs) | BSD-3-Clause (also available under GFDL and CC BY-SA 3.0) |
+| jQuery, chessboard.js, chess.js | loaded from a CDN at runtime, not redistributed here | MIT, MIT, BSD-2-Clause |
+
+If you redistribute the Docker image, you are also redistributing the Stockfish
+binary, so you have to pass on its source or an offer for it — a link to the
+[Stockfish repository](https://github.com/official-stockfish/Stockfish) is enough.
