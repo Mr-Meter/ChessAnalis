@@ -1,0 +1,41 @@
+# Copy this file to `docker-compose.yml`, adjust the values marked below,
+# create `.env` from `.env.example`, then run:  docker compose up -d --build
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Paths inside the Linux container. Values set here win over the ones in .env.
+      STOCKFISH_PATH: /usr/games/stockfish
+      DB_PATH: /data/chessanalis.db
+      # Without this, print() output stays in the buffer and never reaches `docker compose logs`.
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - dbdata:/data          # SQLite lives on a persistent volume and survives rebuilds
+    expose:
+      - "8000"                # not published to the host — only Caddy talks to app
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      # These bind every interface. If something else already holds :443 on another
+      # interface (tailscaled on the tailnet address, for example), Caddy fails to
+      # start — bind the public IP explicitly instead:
+      #   - "203.0.113.10:80:80"
+      #   - "203.0.113.10:443:443"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # Let's Encrypt certificates — keep this volume or you will hit issuance rate limits
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  dbdata:
+  caddy_data:
+  caddy_config:

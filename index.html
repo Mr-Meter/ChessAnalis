@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chess Analysis Mini App</title>
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #262522);
+            color: var(--tg-theme-text-color, #ffffff);
+            text-align: center; margin: 0; padding: 10px; overflow-x: hidden;
+        }
+        .container { display: flex; flex-direction: column; align-items: center; width: 100%; }
+
+        textarea {
+            width: 85vw; max-width: 340px; height: 50px;
+            background: var(--tg-theme-secondary-bg-color, #312e2b);
+            color: var(--tg-theme-text-color, #fff);
+            border: 1px solid #45423f; padding: 10px; border-radius: 8px; box-sizing: border-box;
+        }
+        button {
+            background: var(--tg-theme-button-color, #81b64c);
+            color: var(--tg-theme-button-text-color, #fff);
+            border: none; padding: 12px 24px; font-size: 16px;
+            font-weight: bold; cursor: pointer; border-radius: 8px; width: 85vw; max-width: 340px;
+        }
+
+        .archive-panel {
+            width: 85vw; max-width: 340px; background: #312e2b;
+            border: 1px solid #45423f; border-radius: 8px; padding: 10px;
+            margin-top: 8px; box-sizing: border-box; display: none;
+        }
+        .archive-filters { display: flex; gap: 5px; margin-bottom: 8px; }
+        .archive-filters input, .archive-filters select {
+            background: #262522; color: #fff; border: 1px solid #45423f;
+            padding: 6px; border-radius: 4px; font-size: 13px;
+        }
+        .archive-filters input { flex-grow: 1; }
+        .games-list-container {
+            max-height: 160px; overflow-y: auto; text-align: left;
+            background: #262522; border-radius: 4px; padding: 4px;
+        }
+        .game-row {
+            padding: 8px; border-bottom: 1px solid #312e2b; cursor: pointer;
+            font-size: 12px; border-radius: 4px; transition: background 0.2s;
+        }
+        .game-row:hover { background: #312e2b; }
+        .game-row-meta { color: #81b64c; font-weight: bold; margin-bottom: 2px; }
+
+        .lang-bar { display:flex; justify-content:flex-end; width:85vw; max-width:340px; margin-bottom:2px; }
+        .lang-bar button { width:auto; padding:4px 10px; font-size:13px; background:#312e2b; border:1px solid #45423f; }
+        .donate-presets { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin-bottom:8px; }
+        .donate-presets button { width:auto; flex:1 1 60px; padding:8px; font-size:14px; }
+        .donate-row { display:flex; gap:6px; }
+        .donate-row input { flex:1; background:#262522; color:#fff; border:1px solid #45423f; padding:8px; border-radius:6px; box-sizing:border-box; }
+        .donate-row button { width:auto; padding:8px 12px; font-size:14px; }
+
+        .moves-line {
+            width: 85vw; max-width: 340px; margin: 10px 0; padding: 8px;
+            background: var(--tg-theme-secondary-bg-color, #312e2b); border-radius: 6px;
+            display: flex; gap: 8px; overflow-x: auto; white-space: nowrap;
+            box-sizing: border-box; border: 1px solid #45423f;
+        }
+        .move-item {
+            display: inline-block; padding: 4px 8px; border-radius: 4px;
+            color: #bababa; font-size: 14px; font-weight: 500; cursor: pointer;
+        }
+        .phase-tag {
+            display: inline-flex; align-items: center; padding: 4px 6px; flex: 0 0 auto;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+            color: #8f8d8a; border-left: 2px solid #55524f; user-select: none;
+        }
+        .summary-phases { margin-top: 4px; border-top: 1px solid #45423f; padding-top: 4px; }
+        .move-item.active {
+            background: var(--tg-theme-button-color, #81b64c);
+            color: var(--tg-theme-button-text-color, #fff); font-weight: bold;
+        }
+
+        .player-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; padding: 6px 10px; background: rgba(0, 0, 0, 0.2);
+            border-radius: 5px; box-sizing: border-box; font-size: 14px;
+        }
+        .player-name { font-weight: 600; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+        .player-timer {
+            display: none; background: #1e1e1e; color: #fff; font-family: monospace;
+            font-size: 15px; font-weight: bold; padding: 3px 8px; border-radius: 4px;
+            border: 1px solid #45423f; min-width: 70px; text-align: center;
+        }
+
+        .opening-name {
+            font-size: 13px; color: #c9a96a; font-weight: 600; text-align: center;
+            margin: 6px auto 0; max-width: 360px; padding: 0 10px;
+        }
+        .board-wrapper { display: flex; align-items: stretch; justify-content: center; gap: 10px; width: 92vw; max-width: 370px; margin: 5px auto; }
+        .board-container { display: flex; flex-direction: column; gap: 6px; width: 100%; position: relative; }
+        #myBoard { width: 100%; position: relative; }
+
+        .eval-container-block { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 32px; }
+        .eval-value {
+            font-size: 11px; font-weight: bold; color: var(--tg-theme-text-color, #ffffff);
+            background: var(--tg-theme-secondary-bg-color, #312e2b); padding: 2px 4px; border-radius: 4px; border: 1px solid #45423f; min-width: 30px;
+        }
+        .eval-bar-container {
+            width: 22px; height: 280px; background: #1e1e1e; border-radius: 6px;
+            overflow: hidden; display: flex; flex-direction: column; border: 2px solid #45423f; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .eval-bar-white { width: 100%; background: #ffffff; height: 50%; transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        div[class^="square-"], div[class*=" square-"] { position: relative; }
+
+        #myBoard, #myBoard div[class^="square-"], #myBoard div[class*=" square-"], #myBoard img {
+            touch-action: none; -webkit-user-select: none; user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        .sq-selected { box-shadow: inset 0 0 0 100px rgba(255, 235, 59, 0.42); }
+
+        .move-dot {
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            width: 32%; height: 32%; border-radius: 50%;
+            background: rgba(20, 20, 20, 0.22); pointer-events: none; z-index: 60;
+        }
+        .move-dot.capture {
+            width: 92%; height: 92%; background: transparent;
+            border: 5px solid rgba(20, 20, 20, 0.20); box-sizing: border-box;
+        }
+
+        .chess-badge {
+            position: absolute; top: 2px; right: 2px; width: 18px; height: 18px;
+            border-radius: 50%; font-size: 11px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; z-index: 9999 !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.6); color: white !important;
+        }
+        .chess-badge.blunder { background: #fa3131; }
+        .chess-badge.mistake { background: #fca017; }
+        .chess-badge.inaccuracy { background: #f4d03f; color: #1e1e1e !important; }
+        .chess-badge.brilliant { background: #1bc3e6; }
+        .chess-badge.great { background: #5c8bb0; }
+        .chess-badge.miss { background: #ff7769; font-size: 10px; }
+        .chess-badge.best { background: #81b64c; font-size: 9px; }
+        .chess-badge.excellent { background: #96bc4b; font-size: 10px; }
+        .chess-badge.book { background: #a05a2c; font-size: 10px; }
+        .chess-badge.forced { background: #767674; font-size: 10px; }
+
+        #status { font-size: 15px; margin: 5px 0; min-height: 45px; color: #bababa; padding: 0 10px; white-space: pre-line; }
+        .controls { display: flex; gap: 15px; width: 85vw; max-width: 340px; margin-top: 5px; }
+        .controls button { width: 50%; }
+        .controls .flip-btn { width: auto; flex: 0 0 auto; padding: 8px 12px; display: flex; align-items: center; justify-content: center; }
+        .controls .flip-btn svg { display: block; }
+        .board-container.flipped .player-bar:first-child { order: 3; }
+        .board-container.flipped #myBoard { order: 2; }
+        .board-container.flipped .player-bar:last-child { order: 1; }
+        .eval-bar-container.flipped { flex-direction: column-reverse; }
+
+        .explore-hint { font-size: 12px; color: #6f6d6a; margin: 6px auto 0; max-width: 340px; padding: 0 10px; }
+        .explore-bar {
+            width: 85vw; max-width: 340px; margin: 8px auto 0; padding: 8px 10px;
+            background: var(--tg-theme-secondary-bg-color, #312e2b);
+            border: 1px solid #1bc3e6; border-radius: 8px; box-sizing: border-box; text-align: left;
+        }
+        .explore-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; color: #1bc3e6; }
+        .explore-exit { width: auto; padding: 3px 10px; font-size: 12px; background: #45423f; color: #fff; }
+        .explore-line { margin-top: 6px; font-size: 14px; color: #e6e4e1; display: flex; flex-wrap: wrap; gap: 6px; }
+        .explore-line .em { padding: 2px 6px; border-radius: 4px; background: #262522; cursor: pointer; }
+        .explore-line .em.active { background: #1bc3e6; color: #1e1e1e; font-weight: 700; }
+        .explore-best { margin-top: 6px; font-size: 13px; color: #9fd17f; min-height: 18px; }
+
+        .eval-graph-block { width: 92vw; max-width: 370px; margin: 14px auto 6px; }
+        .eval-graph-title { font-size: 12px; color: #8c8a87; margin-bottom: 4px; text-align: center; }
+        .eval-graph {
+            width: 100%; background: #3a3735; border: 1px solid #45423f; border-radius: 8px;
+            overflow: hidden; cursor: pointer; box-shadow: 0 3px 8px rgba(0,0,0,0.3); line-height: 0;
+        }
+        .eval-graph svg { display: block; width: 100%; }
+
+        .summary-block { width: 92vw; max-width: 370px; margin: 12px auto 24px; }
+        .summary-row {
+            display: grid; grid-template-columns: 1.5fr 0.7fr 0.6fr 0.7fr;
+            align-items: center; padding: 7px 2px; border-bottom: 1px solid #2f2c2a;
+        }
+        .summary-row .s-label { text-align: left; color: #d6d4d1; font-size: 14px; }
+        .summary-row .s-w, .summary-row .s-b { text-align: center; font-weight: 700; font-size: 16px; }
+        .summary-row .s-icon { display: flex; justify-content: center; }
+        .summary-head .s-w, .summary-head .s-b {
+            font-size: 13px; color: #cfcdca; font-weight: 600;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .s-badge {
+            width: 22px; height: 22px; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: #fff;
+        }
+        .s-acc-pill {
+            background: var(--tg-theme-secondary-bg-color, #312e2b); border: 1px solid #45423f;
+            border-radius: 6px; padding: 3px 0; text-align: center; font-weight: 700; color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h3 style="margin: 5px 0;" data-i18n="title">Stockfish Game Analysis</h3>
+
+    <textarea id="pgnInput" data-i18n-ph="pgnPlaceholder" placeholder="Paste game PGN..."></textarea>
+
+    <button onclick="startAnalysis()" style="margin-top: 8px;" data-i18n="analyzeBtn">Analyze</button>
+
+    <button onclick="toggleArchivePanel()" style="background: #312e2b; border: 1px solid #45423f; margin-top: 5px; font-size: 14px; padding: 10px;" data-i18n="findGameBtn">
+        📥 Find a game on Chess.com
+    </button>
+
+    <button onclick="toggleDonate()" style="background: #312e2b; border: 1px solid #45423f; margin-top: 5px; font-size: 14px; padding: 10px;" data-i18n="donateBtn">
+        ❤️ Support the author
+    </button>
+
+    <div class="archive-panel" id="donatePanel">
+        <div style="font-size:13px; color:#bababa; margin-bottom:8px;" data-i18n="donateTitle">Send the author some Stars ⭐</div>
+        <div class="donate-presets">
+            <button onclick="donate(10)">⭐10</button>
+            <button onclick="donate(25)">⭐25</button>
+            <button onclick="donate(50)">⭐50</button>
+            <button onclick="donate(100)">⭐100</button>
+        </div>
+        <div class="donate-row">
+            <input type="number" id="customStars" min="1" max="10000" data-i18n-ph="customPlaceholder" placeholder="Custom amount">
+            <button onclick="donateCustom()" data-i18n="sendBtn">Send</button>
+        </div>
+    </div>
+
+    <div class="archive-panel" id="archivePanel">
+        <div class="archive-filters">
+            <input type="text" id="ccUsername" data-i18n-ph="usernamePlaceholder" placeholder="Username">
+            <select id="ccYear">
+                <option value="2026">2026</option>
+                <option value="2025">2025</option>
+                <option value="2024">2024</option>
+            </select>
+            <select id="ccMonth">
+                <option value="06" data-i18n="mon_06">Jun</option>
+                <option value="05" data-i18n="mon_05">May</option>
+                <option value="04" data-i18n="mon_04">Apr</option>
+                <option value="03" data-i18n="mon_03">Mar</option>
+                <option value="02" data-i18n="mon_02">Feb</option>
+                <option value="01" data-i18n="mon_01">Jan</option>
+                <option value="12" data-i18n="mon_12">Dec</option>
+                <option value="11" data-i18n="mon_11">Nov</option>
+                <option value="10" data-i18n="mon_10">Oct</option>
+                <option value="09" data-i18n="mon_09">Sep</option>
+                <option value="08" data-i18n="mon_08">Aug</option>
+                <option value="07" data-i18n="mon_07">Jul</option>
+            </select>
+        </div>
+        <button onclick="loadChessComArchive()" style="font-size: 13px; padding: 6px; margin-bottom: 8px;" data-i18n="showGamesBtn">Show games</button>
+        <div class="games-list-container" id="gamesContainer">
+            <span style="color: #666; font-style: italic; font-size: 12px; padding: 5px; display:block;" data-i18n="archiveHint">Enter a username and tap the button above</span>
+        </div>
+    </div>
+
+    <div class="moves-line" id="movesLine">
+        <span style="color: #666; font-style: italic;" data-i18n="movesHint">The move list will appear after analysis</span>
+    </div>
+
+    <div class="opening-name" id="openingName" style="display:none;"></div>
+
+    <div class="board-wrapper">
+        <div class="eval-container-block">
+            <div class="eval-value" id="evalText">0.0</div>
+            <div class="eval-bar-container">
+                <div class="eval-bar-white" id="evalWhite"></div>
+            </div>
+        </div>
+
+        <div class="board-container">
+            <div class="player-bar">
+                <div class="player-name" id="blackName">Black Player (?)</div>
+                <div class="player-timer" id="blackTimer">--:--</div>
+            </div>
+
+            <div id="myBoard"></div>
+
+            <div class="player-bar">
+                <div class="player-name" id="whiteName">White Player (?)</div>
+                <div class="player-timer" id="whiteTimer">--:--</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="status">Paste a PGN or load one from Chess.com</div>
+
+    <div class="explore-bar" id="exploreBar" style="display:none;">
+        <div class="explore-head">
+            <span data-i18n="exploreTitle">🔬 Your line</span>
+            <button class="explore-exit" onclick="exitExplore()" data-i18n="exploreExit">✕ Back to game</button>
+        </div>
+        <div class="explore-line" id="exploreLine"></div>
+        <div class="explore-best" id="exploreBest"></div>
+    </div>
+
+    <div class="controls">
+        <button onclick="prevMove()" data-i18n="backBtn">◀ Back</button>
+        <button class="flip-btn" onclick="flipBoard()" id="flipBtn" title="Flip board"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 20V6"/><path d="M4.5 9.5 8 6l3.5 3.5"/><path d="M16 4v14"/><path d="M12.5 14.5 16 18l3.5-3.5"/></svg></button>
+        <button onclick="nextMove()" data-i18n="nextBtn">Next ▶</button>
+    </div>
+
+    <div class="explore-hint" id="exploreHint" data-i18n="exploreHint" style="display:none;">✋ Tip: drag the pieces on the board to explore your own line</div>
+
+    <div class="eval-graph-block" id="evalGraphBlock" style="display:none;">
+        <div class="eval-graph-title" id="evalGraphTitle" data-i18n="graphHint">Evaluation graph — tap to jump to a move</div>
+        <div class="eval-graph" id="evalGraph" onclick="onGraphClick(event)"></div>
+    </div>
+
+    <div class="summary-block" id="summaryBlock" style="display:none;"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    if (tg) tg.expand();
+
+    const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+    let board = Chessboard('myBoard', {
+        position: 'start',
+        draggable: true,
+        onDragStart: onDragStart,
+        onDrop: onDrop,
+        onSnapEnd: onSnapEnd,
+    });
+
+    let tapStartSq = null;
+    let tapWasInside = false;
+
+    function squareFromXY(x, y) {
+        const el = document.getElementById('myBoard');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        if (!r.width || x < r.left || x >= r.right || y < r.top || y >= r.bottom) return null;
+        const size = r.width / 8;
+        const col = Math.max(0, Math.min(7, Math.floor((x - r.left) / size)));
+        const row = Math.max(0, Math.min(7, Math.floor((y - r.top) / size)));
+        const white = !board || board.orientation() === 'white';
+        const file = 'abcdefgh'[white ? col : 7 - col];
+        const rank = white ? 8 - row : row + 1;
+        return file + rank;
+    }
+    function tapDown(x, y) {
+        tapStartSq = squareFromXY(x, y);
+        tapWasInside = tapStartSq !== null;
+    }
+    function tapUp(x, y) {
+        const start = tapStartSq, wasInside = tapWasInside;
+        tapStartSq = null; tapWasInside = false;
+        if (wasInside) {
+            const end = squareFromXY(x, y);
+            if (end && end === start) handleSquareTap(start);
+        } else if (selectedSquare) {
+            clearSelection();
+        }
+    }
+
+    let touchActive = false;
+    document.addEventListener('mousedown', e => { if (touchActive) return; tapDown(e.clientX, e.clientY); });
+    document.addEventListener('mouseup', e => { if (touchActive) return; tapUp(e.clientX, e.clientY); });
+    document.addEventListener('touchstart', e => { touchActive = true; const t = e.touches[0]; if (t) tapDown(t.clientX, t.clientY); }, { passive: true });
+    document.addEventListener('touchend', e => {
+        const t = e.changedTouches[0]; if (t) tapUp(t.clientX, t.clientY);
+        setTimeout(() => { touchActive = false; }, 600);
+    });
+
+    let movesHistory = [];
+    let gameMetadata = null;
+    let currentMoveIndex = -1;
+
+    let exploreMode = false;
+    let exploreBaseFen = START_FEN;
+    let exploreLine = [];
+    let exploreCursor = -1;
+    let exploreReqId = 0;
+
+    let selectedSquare = null;
+    let scrollLocked = false;
+
+    const I18N = {
+        en: {
+            title: "Stockfish Game Analysis",
+            pgnPlaceholder: "Paste game PGN...",
+            analyzeBtn: "Analyze",
+            findGameBtn: "📥 Find a game on Chess.com",
+            donateBtn: "❤️ Support the author",
+            donateTitle: "Send the author some Stars ⭐",
+            customPlaceholder: "Custom amount",
+            sendBtn: "Send",
+            usernamePlaceholder: "Username",
+            showGamesBtn: "Show games",
+            archiveHint: "Enter a username and tap the button above",
+            movesHint: "The move list will appear after analysis",
+            statusDefault: "Paste a PGN or load one from Chess.com",
+            backBtn: "◀ Back",
+            nextBtn: "Next ▶",
+            graphHint: "Evaluation graph — tap to jump to a move",
+            phase_opening: "Opening", phase_middlegame: "Middlegame", phase_endgame: "Endgame",
+            sum_accuracy:"Accuracy", sum_Brilliant:"Brilliant", sum_Great:"Great",
+            sum_Best:"Best", sum_Excellent:"Excellent", sum_Good:"Good", sum_Book:"Book",
+            sum_Inaccuracy:"Inaccuracy", sum_Miss:"Miss", sum_Mistake:"Mistake",
+            sum_Blunder:"Blunder", sum_Forced:"Forced",
+            mon_01:"Jan",mon_02:"Feb",mon_03:"Mar",mon_04:"Apr",mon_05:"May",mon_06:"Jun",
+            mon_07:"Jul",mon_08:"Aug",mon_09:"Sep",mon_10:"Oct",mon_11:"Nov",mon_12:"Dec",
+            enterUsername: "Enter a username!",
+            loadingGames: "Loading game list...",
+            archiveNotFound: "Archive not found or invalid username",
+            noGames: "No games for the selected period.",
+            resultLabel: "Result",
+            gameSelected: "Game selected! Tap “Analyze”.",
+            enterPgn: "Enter a PGN!",
+            analyzing: "Stockfish is analyzing the game...",
+            loadingMoves: "Loading moves...",
+            analysisReady: "Analysis ready! Use the buttons to browse.",
+            loadError: "Loading error",
+            errorPrefix: "Error",
+            startPos: "Starting position",
+            moveLabel: "Move",
+            evalLabel: "Eval",
+            bestMoveLabel: "Best move",
+            mate: "🏁 CHECKMATE! Game over.",
+            enterAmount: "Enter the number of Stars!",
+            donateThanks: "💖 Thank you for your support!",
+            donateFailed: "Payment failed.",
+            v_Blunder: "❌ BLUNDER!",
+            v_Mistake: "⚠️ MISTAKE!",
+            v_Inaccuracy: "🤔 Inaccuracy.",
+            v_Brilliant: "✨ BRILLIANT MOVE!!",
+            v_Great: "❗ GREAT MOVE! The only good move here",
+            v_Miss: "😬 MISS! A chance to punish the opponent slipped away",
+            v_Best: "⭐ BEST MOVE!",
+            v_Excellent: "✓ Excellent move",
+            v_Book: "📖 Book move (Theory)",
+            v_Forced: "🔒 Forced move",
+            v_Good: "👍 Good move",
+            v_Normal: "👍 Decent move",
+            exploreTitle: "🔬 Your line",
+            exploreExit: "✕ Back to game",
+            exploreHint: "✋ Tip: drag the pieces on the board to explore your own line",
+            exploreThinking: "Stockfish is evaluating your position...",
+            exploreBestLabel: "Best reply",
+            exploreEvalLabel: "Eval",
+            cpUnit: "cp",
+            exploreMateIn: "mate in {n}",
+            exploreCheckmate: "🏁 Checkmate! Game over.",
+            exploreDraw: "🤝 Draw (stalemate / insufficient material).",
+            exploreYourMove: "Your move",
+        }
+    };
+
+    const lang = 'en';
+
+    function t(key) {
+        const dict = I18N[lang] || I18N.en;
+        return (dict[key] !== undefined) ? dict[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key);
+    }
+
+    function applyTranslations() {
+        document.documentElement.lang = lang;
+        document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+        document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+    }
+
+    function toggleDonate() { $('#donatePanel').slideToggle(); }
+
+    async function donate(amount) {
+        amount = parseInt(amount, 10);
+        if (!amount || amount < 1) { alert(t('enterAmount')); return; }
+        try {
+            const r = await fetch('/create-invoice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount })
+            });
+            if (!r.ok) { const e = await r.json(); throw new Error(e.detail || r.status); }
+            const data = await r.json();
+            if (tg && tg.openInvoice) {
+                tg.openInvoice(data.invoice_link, (status) => {
+                    if (status === 'paid') {
+                        document.getElementById('status').innerText = t('donateThanks');
+                        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                        $('#donatePanel').slideUp();
+                    } else if (status === 'failed') {
+                        alert(t('donateFailed'));
+                    }
+                });
+            } else {
+                window.open(data.invoice_link, '_blank');
+            }
+        } catch (err) {
+            alert(t('errorPrefix') + ': ' + err.message);
+        }
+    }
+
+    function donateCustom() { donate(document.getElementById('customStars').value); }
+
+    async function loadFromDeepLink() {
+        let gameId = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || null;
+        if (!gameId) { gameId = new URLSearchParams(location.search).get('game'); }
+        if (!gameId) return;
+        try {
+            document.getElementById('status').innerText = t('loadingMoves');
+            const r = await fetch('/game/' + encodeURIComponent(gameId));
+            if (!r.ok) { document.getElementById('status').innerText = t('statusDefault'); return; }
+            const data = await r.json();
+            renderAnalysis(data.analysis, data.meta);
+        } catch (e) {
+            console.error(e);
+            document.getElementById('status').innerText = t('statusDefault');
+        }
+    }
+
+    function renderAnalysis(analysisData, meta) {
+        movesHistory = analysisData;
+        gameMetadata = meta;
+        currentMoveIndex = -1;
+        exitExploreSilent();
+
+        document.getElementById('whiteName').innerText = gameMetadata.white;
+        document.getElementById('blackName').innerText = gameMetadata.black;
+
+        const opEl = document.getElementById('openingName');
+        if (gameMetadata.opening) { opEl.style.display = 'block'; opEl.innerText = '📖 ' + gameMetadata.opening; }
+        else { opEl.style.display = 'none'; opEl.innerText = ''; }
+
+        if (gameMetadata.has_clocks) { $('.player-timer').show(); resetClocks(); }
+        else { $('.player-timer').hide(); }
+
+        board.start(false);
+        updateEvalBar(0);
+        renderMovesLine();
+        renderEvalGraph();
+        renderSummary();
+        clearBadgesAndArrows();
+        document.getElementById('status').innerText = t('analysisReady');
+    }
+
+    function flipBoard() {
+        board.flip();
+        const flipped = board.orientation() === 'black';
+        document.querySelector('.board-container').classList.toggle('flipped', flipped);
+        document.querySelector('.eval-bar-container').classList.toggle('flipped', flipped);
+        clearBadgesAndArrows();
+        if (exploreMode) renderExploreView();
+        else if (currentMoveIndex !== -1) updateUI();
+        if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    }
+
+    $(window).resize(function() {
+        board.resize();
+        renderEvalGraph();
+        if (exploreMode) renderExploreView();
+        else if (currentMoveIndex !== -1) updateUI();
+    });
+
+    function cleanTimeStr(str) {
+        if (!str) return "--:--";
+        let parts = str.split('.')[0].split(':');
+        if (parts.length === 3) {
+            if (parts[0] === '0' || parts[0] === '00') return `${parts[1]}:${parts[2]}`;
+            return `${parts[0]}:${parts[1]}:${parts[2]}`;
+        }
+        return str.split('.')[0];
+    }
+
+    function toggleArchivePanel() {
+        $('#archivePanel').slideToggle();
+    }
+
+    async function loadChessComArchive() {
+        const username = document.getElementById('ccUsername').value.trim();
+        const year = document.getElementById('ccYear').value;
+        const month = document.getElementById('ccMonth').value;
+        const container = document.getElementById('gamesContainer');
+
+        if (!username) return alert(t('enterUsername'));
+
+        container.innerHTML = `<span style="color: #aaa; font-size:12px; padding:5px; display:block;">${t('loadingGames')}</span>`;
+
+        try {
+            const url = `https://api.chess.com/pub/player/${username.toLowerCase()}/games/${year}/${month}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(t('archiveNotFound'));
+
+            const data = await response.json();
+            if (!data.games || data.games.length === 0) {
+                container.innerHTML = `<span style="color: #ff5252; font-size:12px; padding:5px; display:block;">${t('noGames')}</span>`;
+                return;
+            }
+
+            container.innerHTML = '';
+
+            data.games.reverse().forEach((game, index) => {
+                const dateMeta = game.pgn.match(/\[Date "([^"]+)"\]/);
+                const gameDate = dateMeta ? dateMeta[1] : `${year}.${month}`;
+
+                const whiteInfo = game.white.username;
+                const blackInfo = game.black.username;
+                const result = game.white.result + " - " + game.black.result;
+
+                const row = document.createElement('div');
+                row.className = 'game-row';
+                row.innerHTML = `
+                    <div class="game-row-meta">📅 ${gameDate} | ⚔️ ${game.time_class}</div>
+                    <div>⚪ ${whiteInfo} vs ⚫ ${blackInfo}</div>
+                    <div style="color: #aaa; font-size:11px;">${t('resultLabel')}: ${result}</div>
+                `;
+
+                row.onclick = () => {
+                    document.getElementById('pgnInput').value = game.pgn;
+                    $('#archivePanel').slideUp();
+                    document.getElementById('status').innerText = t('gameSelected');
+                    startAnalysis();
+                };
+
+                container.appendChild(row);
+            });
+
+        } catch (error) {
+            container.innerHTML = `<span style="color: #ff5252; font-size:12px; padding:5px; display:block;">${t('errorPrefix')}: ${error.message}</span>`;
+        }
+    }
+
+    async function startAnalysis() {
+        const pgnText = document.getElementById('pgnInput').value;
+        if (!pgnText) return alert(t('enterPgn'));
+
+        document.getElementById('status').innerText = t('analyzing');
+        document.getElementById('movesLine').innerHTML = `<span style="color: #aaa;">${t('loadingMoves')}</span>`;
+
+        try {
+            const response = await fetch('/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pgn: pgnText })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || `${t('errorPrefix')} ${response.status}`);
+            }
+
+            const data = await response.json();
+            renderAnalysis(data.analysis, data.meta);
+
+            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        } catch (error) {
+            document.getElementById('status').innerText = t('errorPrefix') + ": " + error.message;
+            document.getElementById('movesLine').innerHTML = `<span style="color: #ff5252;">${t('loadError')}</span>`;
+            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+        }
+    }
+
+    function renderMovesLine() {
+        const container = document.getElementById('movesLine');
+        container.innerHTML = '';
+
+        let lastPhase = null;
+        movesHistory.forEach((item, index) => {
+            if (item.phase && item.phase !== lastPhase) {
+                lastPhase = item.phase;
+                const tag = document.createElement('span');
+                tag.className = 'phase-tag';
+                tag.textContent = t('phase_' + item.phase);
+                container.appendChild(tag);
+            }
+            const moveNum = index % 2 === 0 ? `${Math.floor(index / 2) + 1}. ` : '';
+            const span = document.createElement('span');
+            span.className = 'move-item';
+            span.id = `move-${index}`;
+            span.innerText = `${moveNum}${item.move}`;
+
+            span.onclick = () => {
+                if (exploreMode) exitExploreSilent();
+                currentMoveIndex = index;
+                updateUI();
+            };
+            container.appendChild(span);
+        });
+    }
+
+    const VERDICT_BADGES = {
+        Brilliant: ['brilliant', '!!'], Great: ['great', '!'], Best: ['best', '★'],
+        Excellent: ['excellent', '✓'], Book: ['book', '📖'], Forced: ['forced', '🔒'],
+        Inaccuracy: ['inaccuracy', '?!'], Miss: ['miss', '✗'],
+        Mistake: ['mistake', '?'], Blunder: ['blunder', '??'],
+    };
+    const VERDICT_COLORS = {
+        Brilliant: '#1bc3e6', Great: '#5c8bb0', Best: '#81b64c', Excellent: '#96bc4b',
+        Good: '#7d9b76', Book: '#a05a2c', Inaccuracy: '#f4d03f', Miss: '#ff7769',
+        Mistake: '#fca017', Blunder: '#fa3131',
+    };
+
+    const GRAPH_CLAMP = 8;
+    const GRAPH_MARK_COLORS = {
+        Blunder: '#fa3131', Mistake: '#fca017', Inaccuracy: '#f4d03f', Brilliant: '#1bc3e6',
+        Miss: '#ff7769', Great: '#5c8bb0',
+    };
+
+    function goToMove(index) {
+        if (!movesHistory.length) return;
+        if (exploreMode) exitExploreSilent();
+        currentMoveIndex = Math.max(-1, Math.min(movesHistory.length - 1, index));
+        updateUI();
+    }
+
+    function renderEvalGraph() {
+        const block = document.getElementById('evalGraphBlock');
+        const host = document.getElementById('evalGraph');
+        const N = movesHistory.length;
+        if (!N) { block.style.display = 'none'; host.innerHTML = ''; return; }
+        block.style.display = 'block';
+
+        const W = Math.max(220, Math.round(host.clientWidth || 340));
+        const H = 90, mid = H / 2;
+        const yOf = s => {
+            const v = Math.max(-GRAPH_CLAMP, Math.min(GRAPH_CLAMP, s || 0));
+            return +(mid - (v / GRAPH_CLAMP) * mid).toFixed(1);
+        };
+        const xOf = i => N > 1 ? +((i * (W - 1)) / (N - 1)).toFixed(1) : W / 2;
+
+        let d = `M 0,${yOf(movesHistory[0].score)}`;
+        for (let i = 0; i < N; i++) d += ` L ${xOf(i)},${yOf(movesHistory[i].score)}`;
+        d += ` L ${W},${H} L 0,${H} Z`;
+
+        const PHASE_FILLS = { opening: '#a05a2c', middlegame: 'transparent', endgame: '#5c8bb0' };
+        let phaseRects = '', segStart = 0;
+        for (let i = 1; i <= N; i++) {
+            if (i === N || movesHistory[i].phase !== movesHistory[segStart].phase) {
+                const fill = PHASE_FILLS[movesHistory[segStart].phase];
+                if (fill && fill !== 'transparent') {
+                    const x1 = segStart === 0 ? 0 : (xOf(segStart - 1) + xOf(segStart)) / 2;
+                    const x2 = i === N ? W : (xOf(i - 1) + xOf(i)) / 2;
+                    phaseRects += `<rect x="${x1.toFixed(1)}" y="0" width="${(x2 - x1).toFixed(1)}" height="${H}" fill="${fill}" opacity="0.13"/>`;
+                }
+                segStart = i;
+            }
+        }
+
+        let marks = '';
+        for (let i = 0; i < N; i++) {
+            const c = GRAPH_MARK_COLORS[movesHistory[i].verdict];
+            if (c) marks += `<circle cx="${xOf(i)}" cy="${yOf(movesHistory[i].score)}" r="3.2" fill="${c}"/>`;
+        }
+
+        host.innerHTML =
+            `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+            phaseRects +
+            `<path d="${d}" fill="#eeeeec"/>` +
+            `<line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="#7a7775" stroke-width="1" stroke-dasharray="5 5"/>` +
+            marks +
+            `<line id="graphCursor" x1="0" y1="0" x2="0" y2="${H}" stroke="#81b64c" stroke-width="2.5" style="display:none;"/>` +
+            `</svg>`;
+        updateGraphCursor();
+    }
+
+    function updateGraphCursor() {
+        const cur = document.getElementById('graphCursor');
+        if (!cur) return;
+        const N = movesHistory.length;
+        if (currentMoveIndex < 0 || !N) { cur.style.display = 'none'; return; }
+        const W = cur.ownerSVGElement ? cur.ownerSVGElement.viewBox.baseVal.width : 0;
+        const x = N > 1 ? (currentMoveIndex * (W - 1)) / (N - 1) : W / 2;
+        cur.setAttribute('x1', x);
+        cur.setAttribute('x2', x);
+        cur.style.display = 'block';
+    }
+
+    function onGraphClick(e) {
+        const N = movesHistory.length;
+        const svg = document.getElementById('evalGraph').querySelector('svg');
+        if (!svg || !N) return;
+        const rect = svg.getBoundingClientRect();
+        const ratio = (e.clientX - rect.left) / rect.width;
+        goToMove(Math.round(ratio * (N - 1)));
+        if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    }
+
+    const SUMMARY_ROWS = [
+        { key: 'Brilliant',  sym: '!!', color: '#1bc3e6' },
+        { key: 'Great',      sym: '!',  color: '#5c8bb0' },
+        { key: 'Best',       sym: '★',  color: '#81b64c' },
+        { key: 'Excellent',  sym: '✓',  color: '#96bc4b' },
+        { key: 'Good',       sym: '👍', color: '#7d9b76' },
+        { key: 'Book',       sym: '📖', color: '#a05a2c' },
+        { key: 'Inaccuracy', sym: '?!', color: '#f4d03f', dark: true },
+        { key: 'Miss',       sym: '✗',  color: '#ff7769' },
+        { key: 'Mistake',    sym: '?',  color: '#fca017' },
+        { key: 'Blunder',    sym: '??', color: '#fa3131' },
+    ];
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        ));
+    }
+
+    function accuracyFromDrops(drops) {
+        if (!drops.length) return 100;
+        const mean = drops.reduce((a, b) => a + b, 0) / drops.length;
+        const acc = 103.1668 * Math.exp(-0.04354 * mean) - 3.1669;
+        return Math.max(0, Math.min(100, acc));
+    }
+
+    function renderSummary() {
+        const block = document.getElementById('summaryBlock');
+        if (!movesHistory.length) { block.style.display = 'none'; block.innerHTML = ''; return; }
+        block.style.display = 'block';
+
+        const wDrops = [], bDrops = [], wc = {}, bc = {};
+        const phaseDrops = {};
+        movesHistory.forEach((m, i) => {
+            const isW = i % 2 === 0;
+            const c = isW ? wc : bc;
+            c[m.verdict] = (c[m.verdict] || 0) + 1;
+            const drop = m.verdict === 'Book' ? 0 : (m.win_drop || 0);
+            (isW ? wDrops : bDrops).push(drop);
+            if (m.phase) {
+                const pd = phaseDrops[m.phase] || (phaseDrops[m.phase] = { w: [], b: [] });
+                (isW ? pd.w : pd.b).push(drop);
+            }
+        });
+
+        const wName = escapeHtml(gameMetadata ? gameMetadata.white : 'White');
+        const bName = escapeHtml(gameMetadata ? gameMetadata.black : 'Black');
+        const wAcc = accuracyFromDrops(wDrops).toFixed(1);
+        const bAcc = accuracyFromDrops(bDrops).toFixed(1);
+
+        let html =
+            `<div class="summary-row summary-head">` +
+                `<div class="s-label"></div><div class="s-w">${wName}</div>` +
+                `<div class="s-icon"></div><div class="s-b">${bName}</div></div>` +
+            `<div class="summary-row">` +
+                `<div class="s-label">${t('sum_accuracy')}</div>` +
+                `<div class="s-w"><div class="s-acc-pill">${wAcc}</div></div>` +
+                `<div class="s-icon"></div>` +
+                `<div class="s-b"><div class="s-acc-pill">${bAcc}</div></div></div>`;
+
+        SUMMARY_ROWS.forEach(r => {
+            const w = wc[r.key] || 0, b = bc[r.key] || 0;
+            const badgeStyle = `background:${r.color}` + (r.dark ? ';color:#1e1e1e' : '');
+            html +=
+                `<div class="summary-row">` +
+                    `<div class="s-label">${t('sum_' + r.key)}</div>` +
+                    `<div class="s-w" style="color:${r.color}">${w}</div>` +
+                    `<div class="s-icon"><div class="s-badge" style="${badgeStyle}">${r.sym}</div></div>` +
+                    `<div class="s-b" style="color:${r.color}">${b}</div></div>`;
+        });
+
+        const phaseOrder = ['opening', 'middlegame', 'endgame'];
+        const present = phaseOrder.filter(ph => phaseDrops[ph]);
+        if (present.length > 1) {
+            html += `<div class="summary-phases"></div>`;
+            present.forEach(ph => {
+                const pd = phaseDrops[ph];
+                const wa = pd.w.length ? accuracyFromDrops(pd.w).toFixed(1) : '—';
+                const ba = pd.b.length ? accuracyFromDrops(pd.b).toFixed(1) : '—';
+                html +=
+                    `<div class="summary-row">` +
+                        `<div class="s-label">${t('phase_' + ph)}</div>` +
+                        `<div class="s-w">${wa}</div>` +
+                        `<div class="s-icon"></div>` +
+                        `<div class="s-b">${ba}</div></div>`;
+            });
+        }
+
+        block.innerHTML = html;
+    }
+
+    function updateEvalBar(score, mate) {
+        const whiteBar = document.getElementById('evalWhite');
+        const textLabel = document.getElementById('evalText');
+        let displayScore = score;
+        if (score > 8) displayScore = 8;
+        if (score < -8) displayScore = -8;
+        let percentage = 50 + (displayScore * 6.25);
+        whiteBar.style.height = `${100 - percentage}%`;
+        if (mate !== null && mate !== undefined) {
+            textLabel.innerText = (mate === 0) ? 'M' : 'M' + Math.abs(mate);
+        } else {
+            textLabel.innerText = score > 0 ? `+${score}` : score;
+        }
+    }
+
+    function clearBadgesAndArrows() {
+        $('.chess-badge').remove();
+        $('#chess-arrow-svg').remove();
+    }
+
+    function drawBestMoveArrow(fromSq, toSq) {
+        const boardEl = $('#myBoard');
+        const fromEl = boardEl.find('.square-' + fromSq);
+        const toEl = boardEl.find('.square-' + toSq);
+        if (!fromEl.length || !toEl.length) return;
+
+        const boardOffset = boardEl.offset();
+        const fromOffset = fromEl.offset();
+        const toOffset = toEl.offset();
+
+        const x1 = fromOffset.left - boardOffset.left + fromEl.width() / 2;
+        const y1 = fromOffset.top - boardOffset.top + fromEl.height() / 2;
+        const x2 = toOffset.left - boardOffset.left + toEl.width() / 2;
+        const y2 = toOffset.top - boardOffset.top + toEl.height() / 2;
+
+        const color = '#81b64c';
+
+        let svg = `
+        <svg id="chess-arrow-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;">
+            <defs>
+                <marker id="arrowhead" markerWidth="5" markerHeight="5" refX="2" refY="2.5" orient="auto">
+                    <polygon points="0 0, 5 2.5, 0 5" fill="${color}" opacity="0.8"/>
+                </marker>
+            </defs>
+            <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="5" opacity="0.65" marker-end="url(#arrowhead)" />
+        </svg>`;
+
+        boardEl.css('position', 'relative');
+        boardEl.append(svg);
+    }
+
+    function resetClocks() {
+        if (!gameMetadata || movesHistory.length === 0) return;
+        let firstWhiteTime = movesHistory[0] ? cleanTimeStr(movesHistory[0].clk) : "--:--";
+        let firstBlackTime = movesHistory[1] ? cleanTimeStr(movesHistory[1].clk) : firstWhiteTime;
+
+        document.getElementById('whiteTimer').innerText = firstWhiteTime;
+        document.getElementById('blackTimer').innerText = firstBlackTime;
+    }
+
+    function updateUI() {
+        try {
+            clearSelection();
+            $('.move-item').removeClass('active');
+            clearBadgesAndArrows();
+
+            if (currentMoveIndex === -1) {
+                board.start(false);
+                updateEvalBar(0);
+                updateGraphCursor();
+                if (gameMetadata && gameMetadata.has_clocks) resetClocks();
+                document.getElementById('status').innerText = t('startPos');
+                return;
+            }
+
+            const currentData = movesHistory[currentMoveIndex];
+            board.position(currentData.fen, false);
+            updateEvalBar(currentData.score, currentData.mate);
+            updateGraphCursor();
+
+            const activeMoveSpan = document.getElementById(`move-${currentMoveIndex}`);
+            if (activeMoveSpan) {
+                activeMoveSpan.classList.add('active');
+                activeMoveSpan.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+
+            if (gameMetadata && gameMetadata.has_clocks) {
+                let whiteTime = "--:--";
+                let blackTime = "--:--";
+                for (let i = 0; i <= currentMoveIndex; i++) {
+                    if (i % 2 === 0 && movesHistory[i].clk) whiteTime = cleanTimeStr(movesHistory[i].clk);
+                    if (i % 2 === 1 && movesHistory[i].clk) blackTime = cleanTimeStr(movesHistory[i].clk);
+                }
+                if (currentMoveIndex === 0 && movesHistory[1]) blackTime = cleanTimeStr(movesHistory[1].clk);
+                if (currentMoveIndex === 0 && !movesHistory[1]) blackTime = whiteTime;
+
+                document.getElementById('whiteTimer').innerText = whiteTime;
+                document.getElementById('blackTimer').innerText = blackTime;
+            }
+
+            const squareEl = $('#myBoard').find('.square-' + currentData.square);
+            let badgeClass = '';
+            let badgeText = '';
+            let shouldDrawArrow = false;
+
+            let verdictText = `${t('moveLabel')} ${currentMoveIndex + 1}: ${currentData.move} (${t('evalLabel')}: ${currentData.score})\n`;
+
+            if (currentData.move.includes('#')) {
+                verdictText = `${t('moveLabel')} ${currentMoveIndex + 1}: ${currentData.move} — ${t('mate')}\n`;
+                badgeClass = 'best'; badgeText = '★';
+            } else {
+                switch(currentData.verdict) {
+                    case "Blunder":
+                        verdictText += t('v_Blunder') + "\n" + t('bestMoveLabel') + ": " + currentData.best_move;
+                        badgeClass = 'blunder'; badgeText = '??'; shouldDrawArrow = true;
+                        break;
+                    case "Mistake":
+                        verdictText += t('v_Mistake') + "\n" + t('bestMoveLabel') + ": " + currentData.best_move;
+                        badgeClass = 'mistake'; badgeText = '?'; shouldDrawArrow = true;
+                        break;
+                    case "Inaccuracy":
+                        verdictText += t('v_Inaccuracy') + "\n" + t('bestMoveLabel') + ": " + currentData.best_move;
+                        badgeClass = 'inaccuracy'; badgeText = '?!'; shouldDrawArrow = true;
+                        break;
+                    case "Brilliant":
+                        verdictText += t('v_Brilliant');
+                        badgeClass = 'brilliant'; badgeText = '!!';
+                        break;
+                    case "Great":
+                        verdictText += t('v_Great');
+                        badgeClass = 'great'; badgeText = '!';
+                        break;
+                    case "Miss":
+                        verdictText += t('v_Miss') + " " + t('bestMoveLabel') + ": " + currentData.best_move;
+                        badgeClass = 'miss'; badgeText = '✗'; shouldDrawArrow = true;
+                        break;
+                    case "Best":
+                        verdictText += t('v_Best');
+                        badgeClass = 'best'; badgeText = '★';
+                        break;
+                    case "Excellent":
+                        verdictText += t('v_Excellent');
+                        badgeClass = 'excellent'; badgeText = '✓';
+                        break;
+                    case "Book":
+                        verdictText += t('v_Book');
+                        badgeClass = 'book'; badgeText = '📖';
+                        break;
+                    case "Forced":
+                        verdictText += t('v_Forced');
+                        badgeClass = 'forced'; badgeText = '🔒';
+                        break;
+                    case "Good":
+                        verdictText += t('v_Good');
+                        break;
+                    default:
+                        verdictText += t('v_Normal');
+                }
+            }
+
+            if (badgeClass && squareEl.length) {
+                squareEl.append(`<div class="chess-badge ${badgeClass}">${badgeText}</div>`);
+            }
+
+            if (shouldDrawArrow && currentData.best_move_from && currentData.best_move_to) {
+                setTimeout(() => {
+                    drawBestMoveArrow(currentData.best_move_from, currentData.best_move_to);
+                }, 50);
+            }
+
+            document.getElementById('status').innerText = verdictText;
+            if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        } catch (e) {
+            console.error("UI error:", e);
+        }
+    }
+
+    function gameBaseFen() {
+
+        if (currentMoveIndex === -1) return (gameMetadata && gameMetadata.start_fen) || START_FEN;
+        return movesHistory[currentMoveIndex].fen;
+    }
+
+    function shownFen() {
+
+        if (exploreMode) return exploreCursor < 0 ? exploreBaseFen : exploreLine[exploreCursor].fen;
+        return gameBaseFen();
+    }
+
+    function onDragStart(source, piece) {
+        let g;
+        try { g = new Chess(shownFen()); } catch (e) { return false; }
+        if (g.game_over()) return false;
+        const turn = g.turn();
+        if ((turn === 'w' && piece.search(/^b/) !== -1) ||
+            (turn === 'b' && piece.search(/^w/) !== -1)) return false;
+        return true;
+    }
+
+    function commitMove(source, target) {
+        const baseFen = shownFen();
+        let g;
+        try { g = new Chess(baseFen); } catch (e) { return false; }
+        const move = g.move({ from: source, to: target, promotion: 'q' });
+        if (move === null) return false;
+
+        if (!exploreMode) {
+            exploreMode = true;
+            exploreBaseFen = baseFen;
+            exploreLine = [];
+            exploreCursor = -1;
+        } else if (exploreCursor < exploreLine.length - 1) {
+            exploreLine = exploreLine.slice(0, exploreCursor + 1);
+        }
+
+        exploreLine.push({
+            san: move.san, fen: g.fen(), analyzing: true,
+            prev_fen: baseFen,
+            uci: move.from + move.to + (move.promotion || ''),
+            move_to: move.to,
+            verdict: null, win_drop: null,
+            score: null, mate: null, pv: [],
+            best_move: null, best_move_from: null, best_move_to: null,
+            game_over: g.game_over(), checkmate: g.in_checkmate(),
+        });
+        exploreCursor = exploreLine.length - 1;
+
+        renderExploreView();
+        analyzeExplorePosition(exploreLine[exploreCursor]);
+        if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        return true;
+    }
+
+    function onDrop(source, target) {
+        if (source === target) return 'snapback';
+        if (!commitMove(source, target)) return 'snapback';
+        clearSelection();
+
+    }
+
+    function onSnapEnd() {
+        if (exploreMode) board.position(shownFen(), false);
+    }
+
+    function clearSelection() {
+        selectedSquare = null;
+        $('#myBoard .move-dot').remove();
+        $('#myBoard .sq-selected').removeClass('sq-selected');
+        unlockScroll();
+    }
+
+    function selectSquare(sq, g) {
+        clearSelection();
+        selectedSquare = sq;
+        $('#myBoard .square-' + sq).addClass('sq-selected');
+        g.moves({ square: sq, verbose: true }).forEach(m => {
+            const isCapture = m.flags.indexOf('c') !== -1 || m.flags.indexOf('e') !== -1;
+            const dot = document.createElement('div');
+            dot.className = 'move-dot' + (isCapture ? ' capture' : '');
+            const cell = document.querySelector('#myBoard .square-' + m.to);
+            if (cell) cell.appendChild(dot);
+        });
+        lockScroll();
+        centerBoard();
+    }
+
+    function handleSquareTap(sq) {
+        let g;
+        try { g = new Chess(shownFen()); } catch (e) { clearSelection(); return; }
+        if (g.game_over()) { clearSelection(); return; }
+
+        if (selectedSquare) {
+            if (sq === selectedSquare) { clearSelection(); return; }
+            const legal = g.moves({ square: selectedSquare, verbose: true }).some(m => m.to === sq);
+            if (legal) {
+                const from = selectedSquare;
+                clearSelection();
+                commitMove(from, sq);
+                return;
+            }
+            const piece = g.get(sq);
+            if (piece && piece.color === g.turn()) { selectSquare(sq, g); return; }
+            clearSelection();
+            return;
+        }
+
+        const piece = g.get(sq);
+        if (piece && piece.color === g.turn()) selectSquare(sq, g);
+    }
+
+    function preventScroll(e) { e.preventDefault(); }
+    function lockScroll() {
+        if (scrollLocked) return;
+        scrollLocked = true;
+        window.addEventListener('touchmove', preventScroll, { passive: false });
+        window.addEventListener('wheel', preventScroll, { passive: false });
+    }
+    function unlockScroll() {
+        if (!scrollLocked) return;
+        scrollLocked = false;
+        window.removeEventListener('touchmove', preventScroll, { passive: false });
+        window.removeEventListener('wheel', preventScroll, { passive: false });
+    }
+    function centerBoard() {
+        const el = document.getElementById('myBoard');
+        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function analyzeExplorePosition(entry) {
+        const myReq = ++exploreReqId;
+        try {
+            const idx = exploreLine.indexOf(entry);
+            let prevDrop = null;
+            if (idx > 0) prevDrop = exploreLine[idx - 1].win_drop;
+            else if (currentMoveIndex >= 0 && movesHistory[currentMoveIndex])
+                prevDrop = movesHistory[currentMoveIndex].win_drop;
+
+            const r = await fetch('/analyze-move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fen: entry.prev_fen, move: entry.uci, prev_win_drop: prevDrop }),
+            });
+            if (!r.ok) throw new Error(String(r.status));
+            const d = await r.json();
+            entry.analyzing = false;
+            entry.verdict = d.verdict;
+            entry.win_drop = d.win_drop;
+            entry.score = d.score;
+            entry.cp = (d.cp !== undefined && d.cp !== null) ? d.cp : Math.round((d.score || 0) * 100);
+            entry.mate = d.mate;
+            entry.best_move = d.best_move;
+            entry.best_move_from = d.best_move_from;
+            entry.best_move_to = d.best_move_to;
+            entry.pv = d.pv || [];
+            entry.game_over = d.game_over;
+            entry.checkmate = d.checkmate;
+        } catch (e) {
+            entry.analyzing = false;
+        }
+
+        if (myReq === exploreReqId && exploreMode && exploreLine[exploreCursor] === entry) {
+            renderExploreView();
+        } else if (exploreMode) {
+            renderExploreBar();
+        }
+    }
+
+    function renderExploreBar() {
+        const lineEl = document.getElementById('exploreLine');
+        lineEl.innerHTML = '';
+        const parts = exploreBaseFen.split(' ');
+        const baseWhiteToMove = parts[1] !== 'b';
+        const baseMoveNo = parseInt(parts[5] || '1', 10) || 1;
+
+        exploreLine.forEach((e, i) => {
+            const whiteToMove = (((baseWhiteToMove ? 0 : 1) + i) % 2) === 0;
+            const moveNo = baseMoveNo + Math.floor(((baseWhiteToMove ? 0 : 1) + i) / 2);
+            let prefix = whiteToMove ? (moveNo + '. ') : (i === 0 ? (moveNo + '… ') : '');
+            const chip = document.createElement('span');
+            chip.className = 'em' + (i === exploreCursor ? ' active' : '');
+            chip.textContent = prefix + e.san;
+            const vc = VERDICT_COLORS[e.verdict];
+            if (vc) chip.style.boxShadow = 'inset 0 -2px 0 ' + vc;
+            chip.onclick = () => { exploreCursor = i; renderExploreView(); };
+            lineEl.appendChild(chip);
+        });
+
+        const bestEl = document.getElementById('exploreBest');
+        const e = exploreLine[exploreCursor];
+        if (!e) { bestEl.textContent = ''; return; }
+        if (e.checkmate) { bestEl.textContent = t('exploreCheckmate'); return; }
+        if (e.game_over) { bestEl.textContent = t('exploreDraw'); return; }
+        if (e.analyzing) { bestEl.textContent = '⏳ ' + t('exploreThinking'); return; }
+
+        const cp = (e.cp != null) ? e.cp : Math.round((e.score || 0) * 100);
+        const evalStr = (e.mate != null && e.mate !== 0)
+            ? '#' + Math.abs(e.mate)
+            : ((cp > 0 ? '+' : '') + cp + ' ' + t('cpUnit'));
+        let txt = '';
+        if (e.verdict) {
+            const b = VERDICT_BADGES[e.verdict];
+            txt += (b ? b[1] + ' ' : '') + t('sum_' + e.verdict) + ' · ';
+        }
+        txt += t('exploreEvalLabel') + ': ' + evalStr;
+        if (e.best_move) {
+            txt += ' · ' + t('exploreBestLabel') + ': ' + e.best_move;
+            if (e.pv && e.pv.length > 1) txt += ' ' + e.pv.slice(1, 5).join(' ');
+        }
+        bestEl.textContent = txt;
+    }
+
+    function renderExploreView() {
+        clearSelection();
+        document.getElementById('exploreBar').style.display = 'block';
+        document.getElementById('exploreHint').style.display = 'none';
+        $('.move-item').removeClass('active');
+        clearBadgesAndArrows();
+        board.position(shownFen(), false);
+        renderExploreBar();
+
+        const e = exploreLine[exploreCursor];
+        if (!e) { updateEvalBar(0); return; }
+
+        if (e.verdict && e.move_to) {
+            const b = VERDICT_BADGES[e.verdict];
+            if (b) {
+                const sq = $('#myBoard').find('.square-' + e.move_to);
+                if (sq.length) sq.append(`<div class="chess-badge ${b[0]}">${b[1]}</div>`);
+            }
+        }
+
+        if (e.score !== null && e.score !== undefined) {
+            updateEvalBar(e.score, e.mate);
+        } else if (e.checkmate) {
+            const whiteToMove = e.fen.split(' ')[1] !== 'b';
+            updateEvalBar(whiteToMove ? -99 : 99, 0);
+        } else if (e.game_over) {
+            updateEvalBar(0);
+        }
+
+        let head = '➤ ' + e.san + '  (' + t('exploreYourMove') + ')';
+        if (e.checkmate) head = '➤ ' + e.san + ' — ' + t('exploreCheckmate');
+        else if (e.game_over) head = '➤ ' + e.san + ' — ' + t('exploreDraw');
+        else if (e.analyzing) head = '➤ ' + e.san + '\n' + t('exploreThinking');
+        document.getElementById('status').innerText = head;
+
+        if (e.best_move_from && e.best_move_to) {
+            setTimeout(() => drawBestMoveArrow(e.best_move_from, e.best_move_to), 50);
+        }
+    }
+
+    function exitExploreSilent() {
+        clearSelection();
+        exploreMode = false;
+        exploreLine = [];
+        exploreCursor = -1;
+        exploreReqId++;
+        document.getElementById('exploreBar').style.display = 'none';
+        document.getElementById('exploreHint').style.display = movesHistory.length ? 'block' : 'none';
+    }
+
+    function exitExplore() {
+        if (!exploreMode) return;
+        exitExploreSilent();
+        updateUI();
+    }
+
+    function nextMove() {
+        if (exploreMode) {
+            if (exploreCursor < exploreLine.length - 1) { exploreCursor++; renderExploreView(); }
+            return;
+        }
+        if (movesHistory.length > 0 && currentMoveIndex < movesHistory.length - 1) {
+            currentMoveIndex++;
+            updateUI();
+        }
+    }
+
+    function prevMove() {
+        if (exploreMode) {
+            if (exploreCursor <= 0) { exitExplore(); }
+            else { exploreCursor--; renderExploreView(); }
+            return;
+        }
+        if (movesHistory.length > 0 && currentMoveIndex >= 0) {
+            currentMoveIndex--;
+            updateUI();
+        }
+    }
+
+    applyTranslations();
+    document.getElementById('status').innerText = t('statusDefault');
+    loadFromDeepLink();
+</script>
+</body>
+</html>

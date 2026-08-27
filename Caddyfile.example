@@ -1,0 +1,26 @@
+# Caddy reverse proxy in front of the Mini App backend.
+#
+# Copy this file to `Caddyfile` and replace example.com with your own domain.
+# Caddy obtains and renews the Let's Encrypt certificate on its own, provided
+# the domain's A record points at this server and ports 80/443 are reachable.
+
+{
+	# Address for expiry notices from Let's Encrypt. Optional, but recommended.
+	email you@example.com
+}
+
+example.com {
+	# "app" is the service name from docker-compose, 8000 is the uvicorn port.
+	reverse_proxy app:8000
+}
+
+# Optional: redirect www to the apex domain.
+# www.example.com {
+# 	redir https://example.com{uri}
+# }
+
+# Local development without a domain: Caddy issues a self-signed certificate,
+# no ACME requests are made.
+# localhost {
+# 	reverse_proxy app:8000
+# }
